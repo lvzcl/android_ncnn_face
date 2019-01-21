@@ -1,0 +1,3 @@
+/Users/lvzcl/Desktop/people_count/ncnnforandroid_objectiondetection_Mobilenetssd/ncnn_demo/app/.externalNativeBuild/cmake/debug/x86_64/CMakeFiles/edit_cache.dir
+/Users/lvzcl/Desktop/people_count/ncnnforandroid_objectiondetection_Mobilenetssd/ncnn_demo/app/.externalNativeBuild/cmake/debug/x86_64/CMakeFiles/rebuild_cache.dir
+/Users/lvzcl/Desktop/people_count/ncnnforandroid_objectiondetection_Mobilenetssd/ncnn_demo/app/.externalNativeBuild/cmake/debug/x86_64/CMakeFiles/mtcnn.dir

@@ -1,0 +1,55 @@
+
+{
+	"buildFiles" : 
+	[
+		"/Users/lvzcl/Desktop/people_count/ncnnforandroid_objectiondetection_Mobilenetssd/ncnn_demo/app/CMakeLists.txt"
+	],
+	"cleanCommands" : 
+	[
+		"/Users/lvzcl/Library/Android/sdk/cmake/3.6.4111459/bin/cmake --build /Users/lvzcl/Desktop/people_count/ncnnforandroid_objectiondetection_Mobilenetssd/ncnn_demo/app/.externalNativeBuild/cmake/debug/x86 --target clean"
+	],
+	"cppFileExtensions" : [ "cpp" ],
+	"libraries" : 
+	{
+		"libncnn-Debug-x86" : 
+		{
+			"abi" : "x86",
+			"artifactName" : "libncnn",
+			"buildType" : "debug",
+			"output" : "/Users/lvzcl/Desktop/people_count/ncnnforandroid_objectiondetection_Mobilenetssd/ncnn_demo/app/src/main/jniLibs/x86/libncnn.a",
+			"toolchain" : "16486356124100522460"
+		},
+		"mtcnn-Debug-x86" : 
+		{
+			"abi" : "x86",
+			"artifactName" : "mtcnn",
+			"buildCommand" : "/Users/lvzcl/Library/Android/sdk/cmake/3.6.4111459/bin/cmake --build /Users/lvzcl/Desktop/people_count/ncnnforandroid_objectiondetection_Mobilenetssd/ncnn_demo/app/.externalNativeBuild/cmake/debug/x86 --target mtcnn",
+			"buildType" : "debug",
+			"files" : 
+			[
+				
+				{
+					"flags" : "  --target=i686-none-linux-android16 --gcc-toolchain=/Users/lvzcl/Library/Android/sdk/ndk-bundle/toolchains/x86-4.9/prebuilt/darwin-x86_64 --sysroot=/Users/lvzcl/Library/Android/sdk/ndk-bundle/sysroot  -Dmtcnn_EXPORTS -I../../../../src/main/cpp/include -I../../../../src/main/cpp -isystem /Users/lvzcl/Library/Android/sdk/ndk-bundle/sources/cxx-stl/llvm-libc++/include -isystem /Users/lvzcl/Library/Android/sdk/ndk-bundle/sources/android/support/include -isystem /Users/lvzcl/Library/Android/sdk/ndk-bundle/sources/cxx-stl/llvm-libc++abi/include  -isystem /Users/lvzcl/Library/Android/sdk/ndk-bundle/sysroot/usr/include/i686-linux-android -g -DANDROID -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -mstackrealign -Wa,--noexecstack -Wformat -Werror=format-security -std=c++11 -std=c++11 -O0 -fno-limit-debug-info  -fPIC    -c ",
+					"src" : "/Users/lvzcl/Desktop/people_count/ncnnforandroid_objectiondetection_Mobilenetssd/ncnn_demo/app/src/main/cpp/mtcnn.cpp",
+					"workingDirectory" : "/Users/lvzcl/Desktop/people_count/ncnnforandroid_objectiondetection_Mobilenetssd/ncnn_demo/app/.externalNativeBuild/cmake/debug/x86"
+				},
+				
+				{
+					"flags" : "  --target=i686-none-linux-android16 --gcc-toolchain=/Users/lvzcl/Library/Android/sdk/ndk-bundle/toolchains/x86-4.9/prebuilt/darwin-x86_64 --sysroot=/Users/lvzcl/Library/Android/sdk/ndk-bundle/sysroot  -Dmtcnn_EXPORTS -I../../../../src/main/cpp/include -I../../../../src/main/cpp -isystem /Users/lvzcl/Library/Android/sdk/ndk-bundle/sources/cxx-stl/llvm-libc++/include -isystem /Users/lvzcl/Library/Android/sdk/ndk-bundle/sources/android/support/include -isystem /Users/lvzcl/Library/Android/sdk/ndk-bundle/sources/cxx-stl/llvm-libc++abi/include  -isystem /Users/lvzcl/Library/Android/sdk/ndk-bundle/sysroot/usr/include/i686-linux-android -g -DANDROID -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -mstackrealign -Wa,--noexecstack -Wformat -Werror=format-security -std=c++11 -std=c++11 -O0 -fno-limit-debug-info  -fPIC    -c ",
+					"src" : "/Users/lvzcl/Desktop/people_count/ncnnforandroid_objectiondetection_Mobilenetssd/ncnn_demo/app/src/main/cpp/mtcnn_jni.cpp",
+					"workingDirectory" : "/Users/lvzcl/Desktop/people_count/ncnnforandroid_objectiondetection_Mobilenetssd/ncnn_demo/app/.externalNativeBuild/cmake/debug/x86"
+				}
+			],
+			"output" : "/Users/lvzcl/Desktop/people_count/ncnnforandroid_objectiondetection_Mobilenetssd/ncnn_demo/app/build/intermediates/cmake/debug/obj/x86/libmtcnn.so",
+			"toolchain" : "16486356124100522460"
+		}
+	},
+	"toolchains" : 
+	{
+		"16486356124100522460" : 
+		{
+			"cCompilerExecutable" : "/Users/lvzcl/Library/Android/sdk/ndk-bundle/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang",
+			"cppCompilerExecutable" : "/Users/lvzcl/Library/Android/sdk/ndk-bundle/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang++"
+		}
+	}
+}

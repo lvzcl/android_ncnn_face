@@ -1,0 +1,3 @@
+/Users/lvzcl/Desktop/people_count/ncnn_demo/app/.externalNativeBuild/cmake/release/armeabi-v7a/CMakeFiles/edit_cache.dir
+/Users/lvzcl/Desktop/people_count/ncnn_demo/app/.externalNativeBuild/cmake/release/armeabi-v7a/CMakeFiles/rebuild_cache.dir
+/Users/lvzcl/Desktop/people_count/ncnn_demo/app/.externalNativeBuild/cmake/release/armeabi-v7a/CMakeFiles/mtcnn.dir
