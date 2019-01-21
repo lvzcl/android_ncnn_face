@@ -79,14 +79,14 @@
             android:layout_weight="1"
             android:text="检测" />
         <Button
-            android:id="@+id/videoDetect"
+            android:id="@+id/buttonVideo"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="视频"
             />
         <Button
-            android:id="@+id/cameraDetect"
+            android:id="@+id/buttonCamera"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_weight="1"
@@ -114,7 +114,13 @@
     <ImageView
         android:id="@+id/imageView"
         android:layout_width="fill_parent"
-        android:layout_height="fill_parent"
-        android:layout_weight="1" />
+        android:layout_height="wrap_content"
+         />
+    <VideoView
+        android:id="@+id/videoView"
+        android:layout_width="fill_parent"
+        android:layout_height="0dp"
+
+        />
 
 </LinearLayout>

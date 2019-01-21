@@ -11,17 +11,22 @@ import android.graphics.Paint;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
+import android.provider.MediaStore;
 import android.support.v4.app.ActivityCompat;
 import android.support.v7.widget.AppCompatEditText;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.View;
+import android.view.ViewGroup;
+import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.CompoundButton;
 import android.widget.ImageView;
+import android.widget.MediaController;
 import android.widget.TextView;
 import android.widget.Toast;
 import android.widget.ToggleButton;
+import android.widget.VideoView;
 
 import com.example.lvzcl.ncnn_demo.R;
 import com.google.android.gms.appindexing.AppIndex;
@@ -38,7 +43,11 @@ import static android.content.ContentValues.TAG;
 
 public class MainActivity extends Activity {
     private static final int SELECT_IMAGE = 1;
+    private static final int SELECT_VIDEO = 2;
 
+    private MediaController mediaController;
+
+    private VideoView videoView;
     private TextView infoResult;
     private ImageView imageView;
     private Bitmap yourSelectedImage = null;
@@ -49,7 +58,6 @@ public class MainActivity extends Activity {
     private int threadsNumber = 4;
 
     private boolean maxFaceSetting = false;
-
     private MTCNN mtcnn = new MTCNN();
     /**
      * ATTENTION: This was auto-generated to implement the App Indexing API.
@@ -105,6 +113,8 @@ public class MainActivity extends Activity {
 
         infoResult = (TextView) findViewById(R.id.infoResult);
         imageView = (ImageView) findViewById(R.id.imageView);
+        videoView = (VideoView)findViewById(R.id.videoView);
+
 
         //etMinFaceSize = (AppCompatEditText) findViewById(R.id.etMinFaceSize);
         //etTestTimeCount = (AppCompatEditText) findViewById(R.id.etTestTimeCount);
@@ -213,6 +223,17 @@ public class MainActivity extends Activity {
         // ATTENTION: This was auto-generated to implement the App Indexing API.
         // See https://g.co/AppIndexing/AndroidStudio for more information.
         client = new GoogleApiClient.Builder(this).addApi(AppIndex.API).build();
+
+        Button buttonVideo = (Button) findViewById(R.id.buttonVideo);
+        buttonVideo.setOnClickListener(new View.OnClickListener(){
+            @Override
+            public void onClick(View arg0){
+                Intent i = new Intent(Intent.ACTION_PICK);
+                i.setType("video/*");
+                startActivityForResult(i, SELECT_VIDEO);
+            }
+        });
+
     }
 
 
@@ -223,8 +244,20 @@ public class MainActivity extends Activity {
         if (resultCode == RESULT_OK && null != data) {
             Uri selectedImage = data.getData();
 
+            Log.i("uri", selectedImage.getPath());
             try {
+                //选择的是图片
                 if (requestCode == SELECT_IMAGE) {
+                    //设置VideoView的height为0
+                    videoView.stopPlayback();
+                    ViewGroup.LayoutParams video_params = videoView.getLayoutParams();
+                    video_params.height = 0;
+                    videoView.setLayoutParams(video_params);
+
+                    ViewGroup.LayoutParams image_params = imageView.getLayoutParams();
+                    image_params.height = WindowManager.LayoutParams.WRAP_CONTENT;
+                    imageView.setLayoutParams(image_params);
+
                     Bitmap bitmap = decodeUri(selectedImage);
 
                     Bitmap rgba = bitmap.copy(Bitmap.Config.ARGB_8888, true);
@@ -234,6 +267,27 @@ public class MainActivity extends Activity {
                     yourSelectedImage = rgba;
 
                     imageView.setImageBitmap(yourSelectedImage);
+                }
+                else if (requestCode == SELECT_VIDEO){
+                    //进行视频的显示
+                    //设置ImageView的height为0
+                    imageView.setImageBitmap(null);
+
+                    ViewGroup.LayoutParams video_params = videoView.getLayoutParams();
+                    video_params.height = WindowManager.LayoutParams.WRAP_CONTENT;
+                    videoView.setLayoutParams(video_params);
+
+                    ViewGroup.LayoutParams image_params = imageView.getLayoutParams();
+                    image_params.height = 0;
+                    imageView.setLayoutParams(image_params);
+
+                    ViewGroup.LayoutParams params = imageView.getLayoutParams();
+                    mediaController = new MediaController(this);
+                    videoView.setVideoURI(selectedImage);
+                    videoView.setMediaController(mediaController);
+                    videoView.requestFocus();
+                    videoView.start();
+
                 }
             } catch (FileNotFoundException e) {
                 Log.e("MainActivity", "FileNotFoundException");
