@@ -7,10 +7,14 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Matrix;
 import android.graphics.Paint;
+import android.media.MediaMetadataRetriever;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Handler;
+import android.os.Message;
 import android.provider.MediaStore;
 import android.support.v4.app.ActivityCompat;
 import android.support.v7.widget.AppCompatEditText;
@@ -47,14 +51,16 @@ public class MainActivity extends Activity {
 
     private MediaController mediaController;
 
-    private VideoView videoView;
+    //private VideoView videoView;
     private TextView infoResult;
     private ImageView imageView;
     private Bitmap yourSelectedImage = null;
 
+    private Handler update_ui = null;
+
     //AppCompatEditText etMinFaceSize,etTestTimeCount,etThreadsNumber;
-    private int minFaceSize = 40;
-    private int testTimeCount = 10;
+    private int minFaceSize = 20;
+    private int testTimeCount = 5;
     private int threadsNumber = 4;
 
     private boolean maxFaceSetting = false;
@@ -113,8 +119,16 @@ public class MainActivity extends Activity {
 
         infoResult = (TextView) findViewById(R.id.infoResult);
         imageView = (ImageView) findViewById(R.id.imageView);
-        videoView = (VideoView)findViewById(R.id.videoView);
+        //videoView = (VideoView)findViewById(R.id.videoView);
 
+
+        update_ui = new Handler(){
+            @Override
+            public void handleMessage(Message msg){
+                Bitmap bitmap = (Bitmap) msg.obj;
+                imageView.setImageBitmap(bitmap);
+            }
+        };
 
         //etMinFaceSize = (AppCompatEditText) findViewById(R.id.etMinFaceSize);
         //etTestTimeCount = (AppCompatEditText) findViewById(R.id.etTestTimeCount);
@@ -154,10 +168,6 @@ public class MainActivity extends Activity {
             public void onClick(View arg0) {
                 if (yourSelectedImage == null)
                     return;
-
-                //minFaceSize = Integer.valueOf(TextUtils.isEmpty(etMinFaceSize.getText().toString()) ? "40" : etMinFaceSize.getText().toString());
-                //testTimeCount = Integer.valueOf(TextUtils.isEmpty(etTestTimeCount.getText().toString()) ? "10" : etTestTimeCount.getText().toString());
-                //threadsNumber = Integer.valueOf(TextUtils.isEmpty(etThreadsNumber.getText().toString()) ? "4" : etThreadsNumber.getText().toString());
 
                 if (threadsNumber != 1&&threadsNumber != 2&&threadsNumber != 4&&threadsNumber != 8){
                     Log.i(TAG, "线程数："+threadsNumber);
@@ -234,30 +244,97 @@ public class MainActivity extends Activity {
             }
         });
 
+
     }
 
+    private void predict_image(Bitmap yourSelectedImage, int index, int times){
+        if (yourSelectedImage == null)
+            return;
+
+        if (threadsNumber != 1&&threadsNumber != 2&&threadsNumber != 4&&threadsNumber != 8){
+            Log.i(TAG, "线程数："+threadsNumber);
+            infoResult.setText("线程数必须是（1，2，4，8）之一");
+            return;
+        }
+
+        Log.i(TAG, "最小人脸："+minFaceSize);
+        mtcnn.SetMinFaceSize(minFaceSize);
+        mtcnn.SetTimeCount(testTimeCount);
+        mtcnn.SetThreadsNumber(threadsNumber);
+
+        //检测流程
+        int width = yourSelectedImage.getWidth();
+        int height = yourSelectedImage.getHeight();
+        byte[] imageDate = getPixelsRGBA(yourSelectedImage);
+
+        long timeDetectFace = System.currentTimeMillis();
+        int faceInfo[] = null;
+        if(!maxFaceSetting) {
+            faceInfo = mtcnn.FaceDetect(imageDate, width, height, 4);
+            Log.i(TAG, "检测所有人脸");
+        }
+        else{
+            faceInfo = mtcnn.MaxFaceDetect(imageDate, width, height, 4);
+            Log.i(TAG, "检测最大人脸");
+        }
+        timeDetectFace = System.currentTimeMillis() - timeDetectFace;
+        Log.i(TAG, "人脸平均检测时间："+timeDetectFace/testTimeCount);
+
+        if(faceInfo.length>1){
+            int faceNum = faceInfo[0];
+            infoResult.setText("图宽："+width+"高："+height+"人脸平均检测时间："+timeDetectFace/testTimeCount+" 数目：" + faceNum +
+                    index + "/" + times);
+            if (index == times){
+                infoResult.setText("视频播放结束");
+            }
+            Log.i(TAG, "图宽："+width+"高："+height+" 人脸数目：" + faceNum );
+
+            Bitmap drawBitmap = yourSelectedImage.copy(Bitmap.Config.ARGB_8888, true);
+            for(int i=0;i<faceNum;i++) {
+                int left, top, right, bottom;
+                Canvas canvas = new Canvas(drawBitmap);
+                Paint paint = new Paint();
+                left = faceInfo[1+14*i];
+                top = faceInfo[2+14*i];
+                right = faceInfo[3+14*i];
+                bottom = faceInfo[4+14*i];
+                paint.setColor(Color.RED);
+                paint.setStyle(Paint.Style.STROKE);//不填充
+                paint.setStrokeWidth(5);  //线的宽度
+                canvas.drawRect(left, top, right, bottom, paint);
+                //画特征点
+                canvas.drawPoints(new float[]{faceInfo[5+14*i],faceInfo[10+14*i],
+                        faceInfo[6+14*i],faceInfo[11+14*i],
+                        faceInfo[7+14*i],faceInfo[12+14*i],
+                        faceInfo[8+14*i],faceInfo[13+14*i],
+                        faceInfo[9+14*i],faceInfo[14+14*i]}, paint);//画多个点
+            }
+            Message msg = new Message();
+            msg.obj = drawBitmap;
+            //msg.what = 1;
+            update_ui.sendMessage(msg);
+            //imageView.setImageBitmap(drawBitmap);
+        }else{
+            infoResult.setText("未检测到人脸" + index + "/" + times);
+            if (index == times){
+                infoResult.setText("视频播放结束");
+            }
+            Message msg = new Message();
+            msg.obj = yourSelectedImage;
+            update_ui.sendMessage(msg);
+        }
+    }
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
 
         if (resultCode == RESULT_OK && null != data) {
-            Uri selectedImage = data.getData();
+            final Uri selectedImage = data.getData();
 
-            Log.i("uri", selectedImage.getPath());
             try {
                 //选择的是图片
                 if (requestCode == SELECT_IMAGE) {
-                    //设置VideoView的height为0
-                    videoView.stopPlayback();
-                    ViewGroup.LayoutParams video_params = videoView.getLayoutParams();
-                    video_params.height = 0;
-                    videoView.setLayoutParams(video_params);
-
-                    ViewGroup.LayoutParams image_params = imageView.getLayoutParams();
-                    image_params.height = WindowManager.LayoutParams.WRAP_CONTENT;
-                    imageView.setLayoutParams(image_params);
-
                     Bitmap bitmap = decodeUri(selectedImage);
 
                     Bitmap rgba = bitmap.copy(Bitmap.Config.ARGB_8888, true);
@@ -270,23 +347,47 @@ public class MainActivity extends Activity {
                 }
                 else if (requestCode == SELECT_VIDEO){
                     //进行视频的显示
-                    //设置ImageView的height为0
+                    final int REQUIRED_SIZE = 400;
                     imageView.setImageBitmap(null);
+                    new Thread(new Runnable() {
+                        @Override
+                        public void run() {
+                            try {
+                                MediaMetadataRetriever retriever = new MediaMetadataRetriever();
+                                retriever.setDataSource(getApplicationContext(), selectedImage);
+                                String time = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION);
+                                Bitmap temp = null;
+                                int seconds = Integer.valueOf(time)/1000;
+                                for(int i = 0; i<=seconds; i++){
+                                    long start = System.currentTimeMillis();
+                                    temp = retriever.getFrameAtTime(i*1000*1000,MediaMetadataRetriever.OPTION_CLOSEST_SYNC);
+                                    //还是要考虑对bitmap进行压缩
+                                    Bitmap rgba = temp.copy(Bitmap.Config.ARGB_8888, true);
+                                    int width = temp.getWidth();
+                                    int height = temp.getHeight();
+                                    int scale = 1;
+                                    while (true) {
+                                        if (width / 2 < REQUIRED_SIZE
+                                                || height / 2 < REQUIRED_SIZE) {
+                                            break;
+                                        }
+                                        width /= 2;
+                                        height /= 2;
+                                        scale *= 2;
+                                    }
+                                    Matrix matrix = new Matrix();
+                                    matrix.setScale((float)(1.0/scale), (float)(1.0/scale));
+                                    Bitmap bitmap = Bitmap.createBitmap(rgba, 0, 0,rgba.getWidth(),
+                                            rgba.getHeight(), matrix, true);
 
-                    ViewGroup.LayoutParams video_params = videoView.getLayoutParams();
-                    video_params.height = WindowManager.LayoutParams.WRAP_CONTENT;
-                    videoView.setLayoutParams(video_params);
+                                    predict_image(bitmap, i, seconds);
 
-                    ViewGroup.LayoutParams image_params = imageView.getLayoutParams();
-                    image_params.height = 0;
-                    imageView.setLayoutParams(image_params);
-
-                    ViewGroup.LayoutParams params = imageView.getLayoutParams();
-                    mediaController = new MediaController(this);
-                    videoView.setVideoURI(selectedImage);
-                    videoView.setMediaController(mediaController);
-                    videoView.requestFocus();
-                    videoView.start();
+                                }
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                            }
+                        }
+                    }).start();
 
                 }
             } catch (FileNotFoundException e) {

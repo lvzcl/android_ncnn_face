@@ -115,12 +115,6 @@
         android:id="@+id/imageView"
         android:layout_width="fill_parent"
         android:layout_height="wrap_content"
-         />
-    <VideoView
-        android:id="@+id/videoView"
-        android:layout_width="fill_parent"
-        android:layout_height="0dp"
-
         />
 
 </LinearLayout>
