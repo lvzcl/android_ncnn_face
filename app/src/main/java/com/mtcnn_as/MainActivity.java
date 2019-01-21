@@ -43,7 +43,7 @@ public class MainActivity extends Activity {
     private ImageView imageView;
     private Bitmap yourSelectedImage = null;
 
-    AppCompatEditText etMinFaceSize,etTestTimeCount,etThreadsNumber;
+    //AppCompatEditText etMinFaceSize,etTestTimeCount,etThreadsNumber;
     private int minFaceSize = 40;
     private int testTimeCount = 10;
     private int threadsNumber = 4;
@@ -106,10 +106,11 @@ public class MainActivity extends Activity {
         infoResult = (TextView) findViewById(R.id.infoResult);
         imageView = (ImageView) findViewById(R.id.imageView);
 
-        etMinFaceSize = (AppCompatEditText) findViewById(R.id.etMinFaceSize);
-        etTestTimeCount = (AppCompatEditText) findViewById(R.id.etTestTimeCount);
-        etThreadsNumber = (AppCompatEditText) findViewById(R.id.etThreadsNumber);
+        //etMinFaceSize = (AppCompatEditText) findViewById(R.id.etMinFaceSize);
+        //etTestTimeCount = (AppCompatEditText) findViewById(R.id.etTestTimeCount);
+        //etThreadsNumber = (AppCompatEditText) findViewById(R.id.etThreadsNumber);
 
+        /**
         ToggleButton mToggleBt = (ToggleButton) findViewById(R.id.toggle_bt);
         mToggleBt.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             @Override
@@ -126,7 +127,7 @@ public class MainActivity extends Activity {
                 }
             }
         });
-
+        */
         Button buttonImage = (Button) findViewById(R.id.buttonImage);
         buttonImage.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -144,9 +145,9 @@ public class MainActivity extends Activity {
                 if (yourSelectedImage == null)
                     return;
 
-                minFaceSize = Integer.valueOf(TextUtils.isEmpty(etMinFaceSize.getText().toString()) ? "40" : etMinFaceSize.getText().toString());
-                testTimeCount = Integer.valueOf(TextUtils.isEmpty(etTestTimeCount.getText().toString()) ? "10" : etTestTimeCount.getText().toString());
-                threadsNumber = Integer.valueOf(TextUtils.isEmpty(etThreadsNumber.getText().toString()) ? "4" : etThreadsNumber.getText().toString());
+                //minFaceSize = Integer.valueOf(TextUtils.isEmpty(etMinFaceSize.getText().toString()) ? "40" : etMinFaceSize.getText().toString());
+                //testTimeCount = Integer.valueOf(TextUtils.isEmpty(etTestTimeCount.getText().toString()) ? "10" : etTestTimeCount.getText().toString());
+                //threadsNumber = Integer.valueOf(TextUtils.isEmpty(etThreadsNumber.getText().toString()) ? "4" : etThreadsNumber.getText().toString());
 
                 if (threadsNumber != 1&&threadsNumber != 2&&threadsNumber != 4&&threadsNumber != 8){
                     Log.i(TAG, "线程数："+threadsNumber);
