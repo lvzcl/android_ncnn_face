@@ -5,6 +5,7 @@ import android.content.Intent;
 import android.hardware.Camera;
 import android.os.Bundle;
 import android.util.Log;
+import android.util.Size;
 import android.view.Display;
 import android.view.Surface;
 import android.view.SurfaceHolder;
@@ -25,9 +26,18 @@ public class CameraActivity extends Activity implements SurfaceHolder.Callback {
 
     private static final String TAG = "CameraActivity";
 
+    private boolean isProcessingFrame = false;
+    private int[] rgbBytes = null;
+    protected int previewWidth = 0;
+    protected int previewHeight = 0;
+
+
+
     private Camera camera;
     private SurfaceView surfaceView;
     private SurfaceHolder surfaceHolder;
+    private Camera.AutoFocusCallback myAutoFocusCallback;
+
 
     private Button buttonReturn;
 
@@ -40,7 +50,28 @@ public class CameraActivity extends Activity implements SurfaceHolder.Callback {
         surfaceHolder = surfaceView.getHolder();
         surfaceHolder.addCallback(this);
 
-        buttonReturn = (Button)findViewById(R.id.buttonReturn);
+        myAutoFocusCallback = new Camera.AutoFocusCallback() {
+
+            public void onAutoFocus(boolean success, Camera camera) {
+                // TODO Auto-generated method stub
+                if (success)//success表示对焦成功
+                {
+                    Log.i(TAG, "myAutoFocusCallback: success...");
+                    //myCamera.setOneShotPreviewCallback(null);
+
+                } else {
+                    //未对焦成功
+                    Log.i(TAG, "myAutoFocusCallback: 失败了...");
+
+                }
+
+
+            }
+
+        };
+
+        /**
+        //buttonReturn = (Button)findViewById(R.id.buttonReturn);
         buttonReturn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -48,7 +79,7 @@ public class CameraActivity extends Activity implements SurfaceHolder.Callback {
                 Intent intent = new Intent(CameraActivity.this, MainActivity.class);
                 startActivity(intent);
             }
-        });
+        });*/
     }
 
     @Override
@@ -89,21 +120,44 @@ public class CameraActivity extends Activity implements SurfaceHolder.Callback {
     }
 
     public void surfaceChanged(SurfaceHolder holder, int format, int width, int height){
-        refreshCamera();
+        if (surfaceHolder.getSurface() == null){
+            // preview surface does not exist
+            return;
+        }
+
+        // stop preview before making changes
+        try {
+            camera.stopPreview();
+        } catch(Exception e){
+            // ignore: tried to stop a non-existent preview
+        }
+        try {
+            camera.setPreviewDisplay(surfaceHolder);
+            Camera.Size s = camera.getParameters().getPreviewSize();
+            //camera.addCallbackBuffer(new byte[getYUVByteSize(s.height, s.width)]);
+            camera.startPreview();
+            camera.autoFocus(myAutoFocusCallback);
+        } catch (Exception e) {
+
+        }
         int rotation = getDisplayOrientation(); //获取当前窗口方向
         camera.setDisplayOrientation(rotation); //设定相机显示方向
     }
 
     public void surfaceDestroyed(SurfaceHolder holder){
         surfaceHolder.removeCallback(this);
-        try {
-            camera.setPreviewDisplay(null);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        camera.setPreviewCallback(null);
         camera.stopPreview();
         camera.release();
         camera = null;
+    }
+
+    public void onPreviewFrame(final byte[] bytes, final Camera camera) {
+        if (isProcessingFrame) {
+            Log.w(TAG,"Dropping frame!");
+            return;
+        }
+
     }
 
 
@@ -117,6 +171,22 @@ public class CameraActivity extends Activity implements SurfaceHolder.Callback {
         }
         return c;
     }
+
+    /**
+     * Utility method to compute the allocated size in bytes of a YUV420SP image
+     * of the given dimensions.
+     */
+    public static int getYUVByteSize(final int width, final int height) {
+        // The luminance plane requires 1 byte per pixel.
+        final int ySize = width * height;
+
+        // The UV plane works on 2x2 blocks, so dimensions with odd size must be rounded up.
+        // Each 2x2 block takes 2 bytes to encode, one each for U and V.
+        final int uvSize = ((width + 1) / 2) * ((height + 1) / 2) * 2;
+
+        return ySize + uvSize;
+    }
+
 
     // 获取当前窗口管理器显示方向
     private int getDisplayOrientation(){
