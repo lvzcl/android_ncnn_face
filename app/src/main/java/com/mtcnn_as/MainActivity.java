@@ -1,5 +1,6 @@
 package com.mtcnn_as;
 
+import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -11,6 +12,7 @@ import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.media.MediaMetadataRetriever;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
@@ -76,6 +78,9 @@ public class MainActivity extends Activity {
             "android.permission.READ_EXTERNAL_STORAGE",
             "android.permission.WRITE_EXTERNAL_STORAGE" };
 
+    private static final int PERMISSIONS_REQUEST = 1;
+    private static final String PERMISSION_CAMERA = Manifest.permission.CAMERA;
+    private static final String PERMISSION_STORAGE = Manifest.permission.WRITE_EXTERNAL_STORAGE;
 
     public static void verifyStoragePermissions(Activity activity) {
 
@@ -244,8 +249,46 @@ public class MainActivity extends Activity {
             }
         });
 
+        Button buttonCamera = (Button) findViewById(R.id.buttonCamera);
+        buttonCamera.setOnClickListener(new View.OnClickListener(){
+            @Override
+            public void onClick(View arg0){
+                if (hasPerMission()){
+                    //进行camera实时预，跳转到相机界面
+                    Intent intent = new Intent(MainActivity.this, CameraActivity.class);
+                    startActivity(intent);
+
+                }else{
+                    requestPermission();
+                }
+            }
+        });
+
 
     }
+
+    //判断是否有相机权限
+    private Boolean hasPerMission(){
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            return checkSelfPermission(PERMISSION_CAMERA) == PackageManager.PERMISSION_GRANTED &&
+                    checkSelfPermission(PERMISSION_STORAGE) == PackageManager.PERMISSION_GRANTED;
+        } else {
+            return true;
+        }
+    }
+
+    private void requestPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (shouldShowRequestPermissionRationale(PERMISSION_CAMERA) ||
+                    shouldShowRequestPermissionRationale(PERMISSION_STORAGE)) {
+                Toast.makeText(MainActivity.this,
+                        "Camera AND storage permission are required for this demo", Toast.LENGTH_LONG).show();
+            }
+            requestPermissions(new String[] {PERMISSION_CAMERA, PERMISSION_STORAGE}, PERMISSIONS_REQUEST);
+        }
+    }
+
 
     private void predict_image(Bitmap yourSelectedImage, int index, int times){
         if (yourSelectedImage == null)
