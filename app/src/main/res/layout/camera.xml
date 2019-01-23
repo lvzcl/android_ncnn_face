@@ -4,27 +4,15 @@
     android:layout_width="fill_parent"
     android:layout_height="fill_parent">
 
+    <TextureView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:id="@+id/textureView"
+        />
 
-
-
-    <!--<LinearLayout
-        android:orientation="horizontal"
-        android:layout_width="fill_parent"
-        android:layout_height="wrap_content">
-
-        <Button
-            android:id="@+id/buttonReturn"
-            android:layout_width="fill_parent"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="返回"
-            />
-
-
-    </LinearLayout>-->
     <SurfaceView
-        android:id="@+id/surfaceView"
-        android:layout_width="fill_parent"
-        android:layout_height="fill_parent" />
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:id="@+id/surfaceView"/>
 
 </LinearLayout>

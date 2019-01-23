@@ -3,7 +3,7 @@ arguments :
 -H/Users/lvzcl/Desktop/people_count/ncnn_demo/app
 -B/Users/lvzcl/Desktop/people_count/ncnn_demo/app/.externalNativeBuild/cmake/debug/armeabi-v7a
 -DANDROID_ABI=armeabi-v7a
--DANDROID_PLATFORM=android-16
+-DANDROID_PLATFORM=android-17
 -DCMAKE_LIBRARY_OUTPUT_DIRECTORY=/Users/lvzcl/Desktop/people_count/ncnn_demo/app/build/intermediates/cmake/debug/obj/armeabi-v7a
 -DCMAKE_BUILD_TYPE=Debug
 -DANDROID_NDK=/Users/lvzcl/Library/Android/sdk/ndk-bundle

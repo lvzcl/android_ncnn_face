@@ -1,54 +1,62 @@
 package com.mtcnn_as;
 
+import java.io.IOException;
+
 import android.app.Activity;
-import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.ImageFormat;
+import android.graphics.Paint;
+import android.graphics.SurfaceTexture;
 import android.hardware.Camera;
+import android.hardware.Camera.Parameters;
+import android.hardware.Camera.Size;
+import android.media.MediaRecorder;
 import android.os.Bundle;
+import android.renderscript.Allocation;
+import android.renderscript.Element;
+import android.renderscript.RenderScript;
+import android.renderscript.ScriptIntrinsicYuvToRGB;
+import android.renderscript.Type;
 import android.util.Log;
-import android.util.Size;
-import android.view.Display;
-import android.view.Surface;
-import android.view.SurfaceHolder;
-import android.view.SurfaceView;
+import android.view.TextureView;
+import android.view.TextureView.SurfaceTextureListener;
 import android.view.View;
-import android.view.WindowManager;
+import android.view.View.OnClickListener;
 import android.widget.Button;
+import android.widget.Toast;
 
 import com.example.lvzcl.ncnn_demo.R;
 
-import java.io.IOException;
+public class CameraActivity extends Activity implements Camera.PreviewCallback{
 
-/**
- * Created by lvzcl on 2019/1/22.
- */
-
-public class CameraActivity extends Activity implements SurfaceHolder.Callback {
-
-    private static final String TAG = "CameraActivity";
-
-    private boolean isProcessingFrame = false;
-    private int[] rgbBytes = null;
-    protected int previewWidth = 0;
-    protected int previewHeight = 0;
-
-
-
-    private Camera camera;
-    private SurfaceView surfaceView;
-    private SurfaceHolder surfaceHolder;
+    private TextureView textureView;
+    private Camera mCamera;
+    private boolean isPreview = false;
+    private SurfaceTexture mSurfaceTexture;
     private Camera.AutoFocusCallback myAutoFocusCallback;
+    private static final String TAG = "cameraActivity";
+
+    private long timestamp = 0;
+    private boolean isImageProcess = false;
+
+    private RenderScript rs;
+    private ScriptIntrinsicYuvToRGB yuvToRgbIntrinsic;
+    private Type.Builder yuvType, rgbaType;
+    private Allocation in, out;
 
 
-    private Button buttonReturn;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.camera);
+        initView();
 
-        surfaceView = (SurfaceView) findViewById(R.id.surfaceView);
-        surfaceHolder = surfaceView.getHolder();
-        surfaceHolder.addCallback(this);
+
+        rs = RenderScript.create(this);
+        yuvToRgbIntrinsic = ScriptIntrinsicYuvToRGB.create(rs, Element.U8_4(rs));
 
         myAutoFocusCallback = new Camera.AutoFocusCallback() {
 
@@ -69,177 +77,137 @@ public class CameraActivity extends Activity implements SurfaceHolder.Callback {
             }
 
         };
+    }
 
-        /**
-        //buttonReturn = (Button)findViewById(R.id.buttonReturn);
-        buttonReturn.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                //释放相机资源后再进行跳转
-                Intent intent = new Intent(CameraActivity.this, MainActivity.class);
-                startActivity(intent);
-            }
-        });*/
+    private void initView() {
+        textureView = (TextureView) this.findViewById(R.id.textureView);
+        textureView.setSurfaceTextureListener(new MySurfaceTextureListener());
+
+    }
+
+    public void initCamera(){
+        if(!isPreview && null != mSurfaceTexture){
+            mCamera = Camera.open();
+            mCamera.setDisplayOrientation(90);
+        }
+        Parameters parameters = mCamera.getParameters();
+        Size mSize = parameters.getSupportedPreviewSizes().get(0);
+        Log.i(TAG, String.valueOf(mSize.width)+ " * " +String.valueOf(mSize.height));
+        parameters.setPreviewSize(mSize.width, mSize.height);
+        parameters.setPreviewFpsRange(4, 10);
+        parameters.setPictureFormat(ImageFormat.JPEG);
+        parameters.setPictureSize(mSize.width, mSize.height);
+        try {
+            mCamera.setPreviewTexture(mSurfaceTexture);
+            mCamera.setPreviewCallback(this);
+        } catch (IOException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
+        //mCamera.setParameters(parameters);
+        mCamera.startPreview();
+        isPreview = true;
     }
 
     @Override
-    // apk暂停时执行的动作：把相机关闭，避免占用导致其他应用无法使用相机
-    protected void onPause() {
-        super.onPause();
-
-        camera.setPreviewCallback(null);
-        camera.stopPreview();
-        camera.release();
-        camera = null;
-    }
-
-    @Override
-    // 恢复apk时执行的动作
-    protected void onResume() {
-        super.onResume();
-        if (null!=camera){
-            camera = getCameraInstance();
-            try {
-                camera.setPreviewDisplay(surfaceHolder);
-                camera.startPreview();
-            } catch(IOException e) {
-                Log.d(TAG, "Error setting camera preview: " + e.getMessage());
-            }
-        }
-    }
-
-
-    public void surfaceCreated(SurfaceHolder holder){
-        camera = getCameraInstance();
-        try {
-            camera.setPreviewDisplay(holder);
-            camera.startPreview();
-        } catch(IOException e) {
-            Log.d(TAG, "Error setting camera preview: " + e.getMessage());
-        }
-    }
-
-    public void surfaceChanged(SurfaceHolder holder, int format, int width, int height){
-        if (surfaceHolder.getSurface() == null){
-            // preview surface does not exist
+    public void onPreviewFrame(byte[] bytes, Camera camera) {
+        if (isImageProcess){
+            Log.w(TAG, "DROP Images");
             return;
         }
+        Camera.Parameters ps = camera.getParameters();
 
-        // stop preview before making changes
-        try {
-            camera.stopPreview();
-        } catch(Exception e){
-            // ignore: tried to stop a non-existent preview
-        }
-        try {
-            camera.setPreviewDisplay(surfaceHolder);
-            Camera.Size s = camera.getParameters().getPreviewSize();
-            //camera.addCallbackBuffer(new byte[getYUVByteSize(s.height, s.width)]);
-            camera.startPreview();
-            camera.autoFocus(myAutoFocusCallback);
-        } catch (Exception e) {
+        int width = ps.getPreviewSize().width;
+        int height = ps.getPreviewSize().height;
 
-        }
-        int rotation = getDisplayOrientation(); //获取当前窗口方向
-        camera.setDisplayOrientation(rotation); //设定相机显示方向
-    }
+        //int[] imgs = new int[ps.getPreviewSize().width * ps.getPreviewSize().height];
 
-    public void surfaceDestroyed(SurfaceHolder holder){
-        surfaceHolder.removeCallback(this);
-        camera.setPreviewCallback(null);
-        camera.stopPreview();
-        camera.release();
-        camera = null;
-    }
+        Bitmap bitmap = convertYUVtoRGB(bytes, width, height);
 
-    public void onPreviewFrame(final byte[] bytes, final Camera camera) {
-        if (isProcessingFrame) {
-            Log.w(TAG,"Dropping frame!");
-            return;
-        }
-
+        camera.addCallbackBuffer(bytes);
+        isImageProcess=false;
+        processImage(bitmap);
+        //drawContent();
     }
 
 
-    // 获取camera实例
-    public static Camera getCameraInstance(){
-        Camera c = null;
-        try {
-            c = Camera.open();
-        } catch(Exception e){
-            Log.d("TAG", "camera is not available");
+    public Bitmap convertYUVtoRGB(byte[] yuvData, int width, int height) {
+        if (yuvType == null) {
+            yuvType = new Type.Builder(rs, Element.U8(rs)).setX(yuvData.length);
+            in = Allocation.createTyped(rs, yuvType.create(), Allocation.USAGE_SCRIPT);
+
+            rgbaType = new Type.Builder(rs, Element.RGBA_8888(rs)).setX(width).setY(height);
+            out = Allocation.createTyped(rs, rgbaType.create(), Allocation.USAGE_SCRIPT);
         }
-        return c;
+        in.copyFrom(yuvData);
+        yuvToRgbIntrinsic.setInput(in);
+        yuvToRgbIntrinsic.forEach(out);
+        Bitmap bmpout = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+        out.copyTo(bmpout);
+        return bmpout;
     }
 
     /**
-     * Utility method to compute the allocated size in bytes of a YUV420SP image
-     * of the given dimensions.
+     * 进行图片的处理
      */
-    public static int getYUVByteSize(final int width, final int height) {
-        // The luminance plane requires 1 byte per pixel.
-        final int ySize = width * height;
+    private void processImage(Bitmap bitmap){
 
-        // The UV plane works on 2x2 blocks, so dimensions with odd size must be rounded up.
-        // Each 2x2 block takes 2 bytes to encode, one each for U and V.
-        final int uvSize = ((width + 1) / 2) * ((height + 1) / 2) * 2;
+        timestamp++;
+        final long currTimeStamp = timestamp;
+        Log.i(TAG, String.valueOf(timestamp));
 
-        return ySize + uvSize;
+
+
+        isImageProcess=false;
     }
 
-
-    // 获取当前窗口管理器显示方向
-    private int getDisplayOrientation(){
-        WindowManager windowManager = getWindowManager();
-        Display display = windowManager.getDefaultDisplay();
-        int rotation = display.getRotation();
-        int degrees = 0;
-        switch (rotation){
-            case Surface.ROTATION_0:
-                degrees = 0;
-                break;
-            case Surface.ROTATION_90:
-                degrees = 90;
-                break;
-            case Surface.ROTATION_180:
-                degrees = 180;
-                break;
-            case Surface.ROTATION_270:
-                degrees = 270;
-                break;
-        }
-
-        android.hardware.Camera.CameraInfo camInfo =
-                new android.hardware.Camera.CameraInfo();
-        android.hardware.Camera.getCameraInfo(Camera.CameraInfo.CAMERA_FACING_BACK, camInfo);
-
-        int result = (camInfo.orientation - degrees + 360) % 360;
-
-        return result;
+    private void drawContent() {
+        //锁定画布
+        Canvas canvas = textureView.lockCanvas();
+        //画内容
+        canvas.drawColor(Color.WHITE);
+        Paint paint = new Paint();
+        paint.setColor(Color.RED);
+        canvas.drawCircle(200, 300, 100, paint);
+        textureView.unlockCanvasAndPost(canvas);
     }
 
-    // 刷新相机
-    private void refreshCamera(){
-        if (surfaceHolder.getSurface() == null){
-            // preview surface does not exist
-            return;
+    private final class MySurfaceTextureListener implements SurfaceTextureListener{
+
+        @Override
+        public void onSurfaceTextureAvailable(SurfaceTexture surface,
+                                              int width, int height) {
+            mSurfaceTexture = surface;
+            initCamera();
         }
 
-        // stop preview before making changes
-        try {
-            camera.stopPreview();
-        } catch(Exception e){
-            // ignore: tried to stop a non-existent preview
+        @Override
+        public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
+            if(null != mCamera){
+                if(isPreview){
+                    mCamera.stopPreview();
+                }
+                mCamera.setPreviewCallback(null);
+                mCamera.release();
+                mCamera = null;
+            }
+            return true;
         }
 
-        // set preview size and make any resize, rotate or
-        // reformatting changes here
-        // start preview with new settings
-        try {
-            camera.setPreviewDisplay(surfaceHolder);
-            camera.startPreview();
-        } catch (Exception e) {
+        @Override
+        public void onSurfaceTextureSizeChanged(SurfaceTexture surface,
+                                                int width, int height) {
+
+        }
+
+        @Override
+        public void onSurfaceTextureUpdated(SurfaceTexture surface) {
+            // TODO Auto-generated method stub
 
         }
     }
+
 }
+
+
+

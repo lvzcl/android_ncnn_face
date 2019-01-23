@@ -21,7 +21,7 @@ ANDROID_ABI:UNINITIALIZED=armeabi-v7a
 ANDROID_NDK:UNINITIALIZED=/Users/lvzcl/Library/Android/sdk/ndk-bundle
 
 //No help, variable specified on the command line.
-ANDROID_PLATFORM:UNINITIALIZED=android-16
+ANDROID_PLATFORM:UNINITIALIZED=android-17
 
 //No help, variable specified on the command line.
 ANDROID_TOOLCHAIN:UNINITIALIZED=clang
@@ -196,10 +196,10 @@ Project_BINARY_DIR:STATIC=/Users/lvzcl/Desktop/people_count/ncnn_demo/app/.exter
 Project_SOURCE_DIR:STATIC=/Users/lvzcl/Desktop/people_count/ncnn_demo/app
 
 //Path to a library.
-log-lib:FILEPATH=/Users/lvzcl/Library/Android/sdk/ndk-bundle/platforms/android-16/arch-arm/usr/lib/liblog.so
+log-lib:FILEPATH=/Users/lvzcl/Library/Android/sdk/ndk-bundle/platforms/android-17/arch-arm/usr/lib/liblog.so
 
 //Dependencies for the target
-mtcnn_LIB_DEPENDS:STATIC=general;libncnn;general;jnigraphics;general;z;general;/Users/lvzcl/Library/Android/sdk/ndk-bundle/platforms/android-16/arch-arm/usr/lib/liblog.so;
+mtcnn_LIB_DEPENDS:STATIC=general;libncnn;general;jnigraphics;general;z;general;/Users/lvzcl/Library/Android/sdk/ndk-bundle/platforms/android-17/arch-arm/usr/lib/liblog.so;
 
 
 ########################
