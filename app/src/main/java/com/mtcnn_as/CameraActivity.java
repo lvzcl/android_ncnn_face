@@ -28,6 +28,8 @@ import android.hardware.Camera.Size;
 import android.media.MediaRecorder;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Handler;
+import android.os.HandlerThread;
 import android.os.Message;
 import android.renderscript.Allocation;
 import android.renderscript.Element;
@@ -49,7 +51,7 @@ import com.example.lvzcl.ncnn_demo.R;
 
 import static android.content.ContentValues.TAG;
 
-public class CameraActivity extends Activity implements Camera.PreviewCallback{
+public class CameraActivity extends Activity{
 
     private TextureView textureView;
     private SurfaceView surfaceView;
@@ -69,15 +71,16 @@ public class CameraActivity extends Activity implements Camera.PreviewCallback{
     private Type.Builder yuvType, rgbaType;
     private Allocation in, out;
 
-    private int CameraWidth = 1280;
-    private int CameraHeight = 720;
 
     private MTCNN mtcnn = new MTCNN();
 
-    //private SVDraw svdraw;
-
     ImageView imageView;
     private boolean Is_Save = true;
+
+    private Handler handler;
+    private HandlerThread handlerThread;
+
+    private Bitmap process_bitmap = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -89,25 +92,6 @@ public class CameraActivity extends Activity implements Camera.PreviewCallback{
         rs = RenderScript.create(this);
         yuvToRgbIntrinsic = ScriptIntrinsicYuvToRGB.create(rs, Element.U8_4(rs));
 
-        myAutoFocusCallback = new Camera.AutoFocusCallback() {
-
-            public void onAutoFocus(boolean success, Camera camera) {
-                // TODO Auto-generated method stub
-                if (success)//success表示对焦成功
-                {
-                    Log.i(TAG, "myAutoFocusCallback: success...");
-                    //myCamera.setOneShotPreviewCallback(null);
-
-                } else {
-                    //未对焦成功
-                    Log.i(TAG, "myAutoFocusCallback: 失败了...");
-
-                }
-
-
-            }
-
-        };
 
     }
 
@@ -123,52 +107,66 @@ public class CameraActivity extends Activity implements Camera.PreviewCallback{
             mCamera = Camera.open();
             mCamera.setDisplayOrientation(90);
         }
-        Parameters parameters = mCamera.getParameters();
-        Size mSize = parameters.getSupportedPreviewSizes().get(0);
-        Log.i(TAG, String.valueOf(mSize.width)+ " * " +String.valueOf(mSize.height));
-        parameters.setPreviewSize(mSize.width, mSize.height);
-        parameters.setPreviewFpsRange(4, 10);
-        parameters.setPictureFormat(ImageFormat.JPEG);
-        parameters.setPictureSize(mSize.width, mSize.height);
-        try {
-            mCamera.setPreviewTexture(mSurfaceTexture);
-            mCamera.setPreviewCallback(this);
-        } catch (IOException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-        }
-        //mCamera.setParameters(parameters);
-        mCamera.startPreview();
-        isPreview = true;
-
-
+        handlerThread = new HandlerThread("my_handlerthread");
+        handlerThread.start();
+        handler = new Handler(handlerThread.getLooper());
+        handler.post(new MyTask());
     }
 
-    @Override
-    public void onPreviewFrame(byte[] bytes, Camera camera) {
+    class MyTask implements Runnable, Camera.PreviewCallback {
+        public void run() {
 
-        if (isImageProcess){
-            Log.w(TAG, "DROP Images");
-            return;
+            Parameters parameters = mCamera.getParameters();
+            Size mSize = parameters.getSupportedPreviewSizes().get(0);
+            //Size mSize = parameters.getPreviewSize();
+            Log.i(TAG, String.valueOf(mSize.width)+ " * " +String.valueOf(mSize.height));
+            parameters.setPreviewSize(mSize.width, mSize.height);
+            parameters.setPreviewFpsRange(4, 10);
+            parameters.setPictureFormat(ImageFormat.JPEG);
+            parameters.setPictureSize(mSize.width, mSize.height);
+            try {
+                mCamera.setPreviewTexture(mSurfaceTexture);
+                Camera.Size s = mCamera.getParameters().getPreviewSize();
+                mCamera.addCallbackBuffer(new byte[getYUVByteSize(s.width, s.height)]);
+                mCamera.setPreviewCallbackWithBuffer(this);
+            } catch (IOException e) {
+                // TODO Auto-generated catch block
+                e.printStackTrace();
+            }
+            //mCamera.setParameters(parameters);
+            mCamera.startPreview();
+            isPreview = true;
+
         }
-        camera.addCallbackBuffer(bytes);
-        isImageProcess=true;
-        Camera.Parameters ps = camera.getParameters();
 
+        @Override
+        public void onPreviewFrame(final byte[] bytes, Camera camera) {
 
-        int width = ps.getPreviewSize().width;
-        int height = ps.getPreviewSize().height;
+            if (isImageProcess) {
+                Log.w(TAG, "DROP Images");
+                return;
+            }
 
-        //int[] imgs = new int[ps.getPreviewSize().width * ps.getPreviewSize().height];
+            isImageProcess = true;
+            Camera.Parameters ps = camera.getParameters();
 
-        Bitmap bitmap = convertYUVtoRGB(bytes, width, height);
+            int format = ps.getPreviewFormat();
 
-        //旋转90度
-        bitmap = rotate_bitmap(bitmap);
-        bitmap = compress_bitmap(bitmap);
-        int[] predict_Info = processImage(bitmap);
-        isImageProcess = false;
+            int width = ps.getPreviewSize().width;
+            int height = ps.getPreviewSize().height;
 
+            Log.i("TAG", "camera size" + String.valueOf(width) + String.valueOf(height));
+            //int[] imgs = new int[ps.getPreviewSize().width * ps.getPreviewSize().height];
+
+            Bitmap bitmap = convertYUVtoRGB(bytes, width, height);
+
+            //旋转90度
+            bitmap = rotate_bitmap(bitmap);
+            bitmap = compress_bitmap(bitmap);
+            isImageProcess = false;
+            processImage(bitmap);
+            camera.addCallbackBuffer(bytes);
+        }
     }
 
     public Bitmap rotate_bitmap(Bitmap bitmap){
@@ -179,6 +177,7 @@ public class CameraActivity extends Activity implements Camera.PreviewCallback{
 
         return res;
     }
+
 
     public Bitmap compress_bitmap(Bitmap bitmap){
         int REQUIRED_SIZE = 400;
@@ -229,14 +228,18 @@ public class CameraActivity extends Activity implements Camera.PreviewCallback{
     /**
      * 进行图片的处理
      */
-    private int[] processImage(Bitmap bitmap){
+    private void processImage(Bitmap bitmap){
+
+
+        timestamp++;
+        final long currTimestamp = timestamp;
+        Log.i(TAG, String.valueOf(timestamp));
 
         if (bitmap==null){
-            return null;
+            return;
         }
-        timestamp++;
-        final long currTimeStamp = timestamp;
-        Log.i(TAG, String.valueOf(timestamp));
+
+        process_bitmap = bitmap;
 
         int threadsNumber = 4;
         int minFaceSize = 20;
@@ -246,11 +249,10 @@ public class CameraActivity extends Activity implements Camera.PreviewCallback{
         mtcnn.SetTimeCount(testTimeCount);
         mtcnn.SetThreadsNumber(threadsNumber);
 
-        int width = bitmap.getWidth();
-        int height = bitmap.getHeight();
+        int width = process_bitmap.getWidth();
+        int height = process_bitmap.getHeight();
         Log.i(TAG, String.valueOf(width) + "*" + String.valueOf(height));
-
-        byte[] imageDate = getPixelsRGBA(bitmap);
+        byte[] imageDate = getPixelsRGBA(process_bitmap);
 
         long timeDetectFace = System.currentTimeMillis();
         int faceInfo[] = null;
@@ -258,13 +260,12 @@ public class CameraActivity extends Activity implements Camera.PreviewCallback{
         faceInfo = mtcnn.FaceDetect(imageDate, width, height, 4);
 
         timeDetectFace = System.currentTimeMillis() - timeDetectFace;
-        Log.i(TAG, "人脸平均检测时间："+timeDetectFace/testTimeCount);
-
+        Log.i(TAG, "人脸平均检测时间："+timeDetectFace/2);
 
         if (faceInfo.length > 1) {
             int faceNum = faceInfo[0];
             Log.i(TAG, "检测人脸数目为" + faceInfo[0]);
-            Bitmap drawBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, true);
+            Bitmap drawBitmap = process_bitmap.copy(Bitmap.Config.ARGB_8888, true);
             for(int i=0;i<faceNum;i++) {
                 int left, top, right, bottom;
                 Canvas canvas = new Canvas(drawBitmap);
@@ -286,10 +287,8 @@ public class CameraActivity extends Activity implements Camera.PreviewCallback{
             }
             imageView.setImageBitmap(drawBitmap);
         }else{
-            imageView.setImageBitmap(bitmap);
+            imageView.setImageBitmap(process_bitmap);
         }
-        return faceInfo;
-
 
     }
 
@@ -342,7 +341,52 @@ public class CameraActivity extends Activity implements Camera.PreviewCallback{
         }
     }
 
+    /**
+     * 摄像头的数据是YUV420SP(NV21)格式的，计算数组需要的大小
+     * @param width
+     * @param height
+     * @return
+     */
+    public static int getYUVByteSize(final int width, final int height) {
+        // The luminance plane requires 1 byte per pixel.
+        final int ySize = width * height;
+
+        // The UV plane works on 2x2 blocks, so dimensions with odd size must be rounded up.
+        // Each 2x2 block takes 2 bytes to encode, one each for U and V.
+        //final int uvSize = ((width + 1) / 2) * ((height + 1) / 2) * 2;
+        int res = (ySize * ImageFormat.getBitsPerPixel(ImageFormat.NV21)) / 8;
+        return res;
+    }
+        //;
+
 }
 
+/**
+ *
+ * preview_size2160*1080
+ 01-24 17:03:43.972 14976-14976/com.example.lvzcl.ncnn_demo I/cameraActivity: preview_size2048*1536
+ 01-24 17:03:43.973 14976-14976/com.example.lvzcl.ncnn_demo I/cameraActivity: preview_size2048*1080
+ 01-24 17:03:43.973 14976-14976/com.example.lvzcl.ncnn_demo I/cameraActivity: preview_size1920*1440
+ 01-24 17:03:43.973 14976-14976/com.example.lvzcl.ncnn_demo I/cameraActivity: preview_size1920*1080
+ 01-24 17:03:43.973 14976-14976/com.example.lvzcl.ncnn_demo I/cameraActivity: preview_size1920*960
+ 01-24 17:03:43.973 14976-14976/com.example.lvzcl.ncnn_demo I/cameraActivity: preview_size1440*1080
+ 01-24 17:03:43.973 14976-14976/com.example.lvzcl.ncnn_demo I/cameraActivity: preview_size1280*960
+ 01-24 17:03:43.973 14976-14976/com.example.lvzcl.ncnn_demo I/cameraActivity: preview_size1280*720
+ 01-24 17:03:43.973 14976-14976/com.example.lvzcl.ncnn_demo I/cameraActivity: preview_size1280*640
+
+
+ 01-24 17:03:43.974 14976-14976/com.example.lvzcl.ncnn_demo I/cameraActivity: picture_size2592*1458
+ 01-24 17:03:43.974 14976-14976/com.example.lvzcl.ncnn_demo I/cameraActivity: picture_size2592*1296
+ 01-24 17:03:43.974 14976-14976/com.example.lvzcl.ncnn_demo I/cameraActivity: picture_size2048*1536
+ 01-24 17:03:43.974 14976-14976/com.example.lvzcl.ncnn_demo I/cameraActivity: picture_size1920*1080
+ 01-24 17:03:43.974 14976-14976/com.example.lvzcl.ncnn_demo I/cameraActivity: picture_size1600*1200
+ 01-24 17:03:43.974 14976-14976/com.example.lvzcl.ncnn_demo I/cameraActivity: picture_size1440*1080
+ 01-24 17:03:43.974 14976-14976/com.example.lvzcl.ncnn_demo I/cameraActivity: picture_size1280*960
+ 01-24 17:03:43.974 14976-14976/com.example.lvzcl.ncnn_demo I/cameraActivity: picture_size1280*768
+ 01-24 17:03:43.974 14976-14976/com.example.lvzcl.ncnn_demo I/cameraActivity: picture_size1280*720
+ 01-24 17:03:43.974 14976-14976/com.example.lvzcl.ncnn_demo I/cameraActivity: picture_size1200*1200
+ 01-24 17:03:43.974 14976-14976/com.example.lvzcl.ncnn_demo I/cameraActivity: picture_size1024*768
+
+ */
 
 
