@@ -1,23 +1,33 @@
 package com.mtcnn_as;
 
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.ByteBuffer;
+import java.util.Iterator;
+import java.util.List;
 
 import android.app.Activity;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.ImageFormat;
+import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.PixelFormat;
 import android.graphics.PorterDuff;
 import android.graphics.Rect;
 import android.graphics.SurfaceTexture;
+import android.graphics.YuvImage;
 import android.hardware.Camera;
 import android.hardware.Camera.Parameters;
 import android.hardware.Camera.Size;
 import android.media.MediaRecorder;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Message;
 import android.renderscript.Allocation;
 import android.renderscript.Element;
@@ -32,6 +42,7 @@ import android.view.TextureView.SurfaceTextureListener;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.Toast;
 
 import com.example.lvzcl.ncnn_demo.R;
@@ -58,13 +69,15 @@ public class CameraActivity extends Activity implements Camera.PreviewCallback{
     private Type.Builder yuvType, rgbaType;
     private Allocation in, out;
 
-    private int CameraWidth = 960;
-    private int CameraHeight = 540;
+    private int CameraWidth = 1280;
+    private int CameraHeight = 720;
 
     private MTCNN mtcnn = new MTCNN();
 
-    private SVDraw svdraw;
+    //private SVDraw svdraw;
 
+    ImageView imageView;
+    private boolean Is_Save = true;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -95,12 +108,14 @@ public class CameraActivity extends Activity implements Camera.PreviewCallback{
             }
 
         };
+
     }
 
     private void initView() {
         textureView = (TextureView) this.findViewById(R.id.textureView);
         textureView.setSurfaceTextureListener(new MySurfaceTextureListener());
 
+        imageView = (ImageView) findViewById(R.id.camera_imageview);
     }
 
     public void initCamera(){
@@ -111,10 +126,10 @@ public class CameraActivity extends Activity implements Camera.PreviewCallback{
         Parameters parameters = mCamera.getParameters();
         Size mSize = parameters.getSupportedPreviewSizes().get(0);
         Log.i(TAG, String.valueOf(mSize.width)+ " * " +String.valueOf(mSize.height));
-        parameters.setPreviewSize(CameraWidth, CameraHeight);
+        parameters.setPreviewSize(mSize.width, mSize.height);
         parameters.setPreviewFpsRange(4, 10);
         parameters.setPictureFormat(ImageFormat.JPEG);
-        parameters.setPictureSize(CameraWidth, CameraHeight);
+        parameters.setPictureSize(mSize.width, mSize.height);
         try {
             mCamera.setPreviewTexture(mSurfaceTexture);
             mCamera.setPreviewCallback(this);
@@ -125,36 +140,76 @@ public class CameraActivity extends Activity implements Camera.PreviewCallback{
         //mCamera.setParameters(parameters);
         mCamera.startPreview();
         isPreview = true;
+
+
     }
 
     @Override
     public void onPreviewFrame(byte[] bytes, Camera camera) {
+
         if (isImageProcess){
             Log.w(TAG, "DROP Images");
             return;
         }
+        camera.addCallbackBuffer(bytes);
+        isImageProcess=true;
         Camera.Parameters ps = camera.getParameters();
 
-        //int width = ps.getPreviewSize().width;
-        //int height = ps.getPreviewSize().height;
+
+        int width = ps.getPreviewSize().width;
+        int height = ps.getPreviewSize().height;
 
         //int[] imgs = new int[ps.getPreviewSize().width * ps.getPreviewSize().height];
 
-        Bitmap bitmap = convertYUVtoRGB(bytes, CameraWidth, CameraHeight);
+        Bitmap bitmap = convertYUVtoRGB(bytes, width, height);
 
-        camera.addCallbackBuffer(bytes);
-        isImageProcess=false;
+        //旋转90度
+        bitmap = rotate_bitmap(bitmap);
+        bitmap = compress_bitmap(bitmap);
         int[] predict_Info = processImage(bitmap);
-
-        svdraw = (SVDraw) findViewById(R.id.svdraw);
-        svdraw.setFaceInfo(predict_Info);
-        svdraw.drawRect();
+        isImageProcess = false;
 
     }
 
+    public Bitmap rotate_bitmap(Bitmap bitmap){
+        Matrix m = new Matrix();
+        m.postRotate(90);
+
+        Bitmap res = Bitmap.createBitmap(bitmap, 0,0, bitmap.getWidth(),  bitmap.getHeight(), m, true);
+
+        return res;
+    }
+
+    public Bitmap compress_bitmap(Bitmap bitmap){
+        int REQUIRED_SIZE = 400;
+        int width = bitmap.getWidth();
+        int height = bitmap.getHeight();
+        int scale = 1;
+        while (true) {
+            if (width / 2 < REQUIRED_SIZE
+                    || height / 2 < REQUIRED_SIZE) {
+                break;
+            }
+            width /= 2;
+            height /= 2;
+            scale *= 2;
+        }
+        Matrix matrix = new Matrix();
+        matrix.setScale((float)(1.0/scale), (float)(1.0/scale));
+        Bitmap res = Bitmap.createBitmap(bitmap, 0, 0,bitmap.getWidth(),
+                bitmap.getHeight(), matrix, true);
+
+        return bitmap;
+    }
 
 
-
+    /**
+     *将camera的YUV数据格式转换成bitmap
+     * @param yuvData
+     * @param width
+     * @param height
+     * @return
+     */
     public Bitmap convertYUVtoRGB(byte[] yuvData, int width, int height) {
         if (yuvType == null) {
             yuvType = new Type.Builder(rs, Element.U8(rs)).setX(yuvData.length);
@@ -200,13 +255,41 @@ public class CameraActivity extends Activity implements Camera.PreviewCallback{
         long timeDetectFace = System.currentTimeMillis();
         int faceInfo[] = null;
 
-        faceInfo = mtcnn.FaceDetect(imageDate, CameraWidth, CameraHeight, 4);
-        Log.i(TAG, "检测所有人脸");
+        faceInfo = mtcnn.FaceDetect(imageDate, width, height, 4);
 
         timeDetectFace = System.currentTimeMillis() - timeDetectFace;
         Log.i(TAG, "人脸平均检测时间："+timeDetectFace/testTimeCount);
 
+
+        if (faceInfo.length > 1) {
+            int faceNum = faceInfo[0];
+            Log.i(TAG, "检测人脸数目为" + faceInfo[0]);
+            Bitmap drawBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, true);
+            for(int i=0;i<faceNum;i++) {
+                int left, top, right, bottom;
+                Canvas canvas = new Canvas(drawBitmap);
+                Paint paint = new Paint();
+                left = faceInfo[1+14*i];
+                top = faceInfo[2+14*i];
+                right = faceInfo[3+14*i];
+                bottom = faceInfo[4+14*i];
+                paint.setColor(Color.RED);
+                paint.setStyle(Paint.Style.STROKE);//不填充
+                paint.setStrokeWidth(5);  //线的宽度
+                canvas.drawRect(left, top, right, bottom, paint);
+                //画特征点
+                canvas.drawPoints(new float[]{faceInfo[5+14*i],faceInfo[10+14*i],
+                        faceInfo[6+14*i],faceInfo[11+14*i],
+                        faceInfo[7+14*i],faceInfo[12+14*i],
+                        faceInfo[8+14*i],faceInfo[13+14*i],
+                        faceInfo[9+14*i],faceInfo[14+14*i]}, paint);//画多个点
+            }
+            imageView.setImageBitmap(drawBitmap);
+        }else{
+            imageView.setImageBitmap(bitmap);
+        }
         return faceInfo;
+
 
     }
 
