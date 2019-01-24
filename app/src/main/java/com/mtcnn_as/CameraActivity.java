@@ -77,7 +77,7 @@ public class CameraActivity extends Activity{
     ImageView imageView;
     private boolean Is_Save = true;
 
-    private Handler handler;
+    private Handler handler, update_ui;
     private HandlerThread handlerThread;
 
     private Bitmap process_bitmap = null;
@@ -92,6 +92,13 @@ public class CameraActivity extends Activity{
         rs = RenderScript.create(this);
         yuvToRgbIntrinsic = ScriptIntrinsicYuvToRGB.create(rs, Element.U8_4(rs));
 
+        update_ui = new Handler(){
+            @Override
+            public void handleMessage(Message msg){
+                Bitmap bitmap = (Bitmap) msg.obj;
+                imageView.setImageBitmap(bitmap);
+            }
+        };
 
     }
 
@@ -167,141 +174,164 @@ public class CameraActivity extends Activity{
             processImage(bitmap);
             camera.addCallbackBuffer(bytes);
         }
-    }
 
-    public Bitmap rotate_bitmap(Bitmap bitmap){
-        Matrix m = new Matrix();
-        m.postRotate(90);
-
-        Bitmap res = Bitmap.createBitmap(bitmap, 0,0, bitmap.getWidth(),  bitmap.getHeight(), m, true);
-
-        return res;
-    }
+        /**
+         * 进行图片的处理
+         */
+        private void processImage(Bitmap bitmap){
 
 
-    public Bitmap compress_bitmap(Bitmap bitmap){
-        int REQUIRED_SIZE = 400;
-        int width = bitmap.getWidth();
-        int height = bitmap.getHeight();
-        int scale = 1;
-        while (true) {
-            if (width / 2 < REQUIRED_SIZE
-                    || height / 2 < REQUIRED_SIZE) {
-                break;
+            timestamp++;
+            final long currTimestamp = timestamp;
+            Log.i(TAG, String.valueOf(timestamp));
+
+            if (bitmap==null){
+                return;
             }
-            width /= 2;
-            height /= 2;
-            scale *= 2;
-        }
-        Matrix matrix = new Matrix();
-        matrix.setScale((float)(1.0/scale), (float)(1.0/scale));
-        Bitmap res = Bitmap.createBitmap(bitmap, 0, 0,bitmap.getWidth(),
-                bitmap.getHeight(), matrix, true);
 
-        return bitmap;
-    }
+            process_bitmap = bitmap;
 
+            int threadsNumber = 4;
+            int minFaceSize = 20;
+            int testTimeCount = 2;
 
-    /**
-     *将camera的YUV数据格式转换成bitmap
-     * @param yuvData
-     * @param width
-     * @param height
-     * @return
-     */
-    public Bitmap convertYUVtoRGB(byte[] yuvData, int width, int height) {
-        if (yuvType == null) {
-            yuvType = new Type.Builder(rs, Element.U8(rs)).setX(yuvData.length);
-            in = Allocation.createTyped(rs, yuvType.create(), Allocation.USAGE_SCRIPT);
+            mtcnn.SetMinFaceSize(minFaceSize);
+            mtcnn.SetTimeCount(testTimeCount);
+            mtcnn.SetThreadsNumber(threadsNumber);
 
-            rgbaType = new Type.Builder(rs, Element.RGBA_8888(rs)).setX(width).setY(height);
-            out = Allocation.createTyped(rs, rgbaType.create(), Allocation.USAGE_SCRIPT);
-        }
-        in.copyFrom(yuvData);
-        yuvToRgbIntrinsic.setInput(in);
-        yuvToRgbIntrinsic.forEach(out);
-        Bitmap bmpout = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
-        out.copyTo(bmpout);
-        return bmpout;
-    }
+            int width = process_bitmap.getWidth();
+            int height = process_bitmap.getHeight();
+            Log.i(TAG, String.valueOf(width) + "*" + String.valueOf(height));
+            byte[] imageDate = getPixelsRGBA(process_bitmap);
 
-    /**
-     * 进行图片的处理
-     */
-    private void processImage(Bitmap bitmap){
+            long timeDetectFace = System.currentTimeMillis();
+            int faceInfo[] = null;
 
+            faceInfo = mtcnn.FaceDetect(imageDate, width, height, 4);
 
-        timestamp++;
-        final long currTimestamp = timestamp;
-        Log.i(TAG, String.valueOf(timestamp));
+            timeDetectFace = System.currentTimeMillis() - timeDetectFace;
+            Log.i(TAG, "人脸平均检测时间："+timeDetectFace/2);
 
-        if (bitmap==null){
-            return;
-        }
+            if (faceInfo.length > 1) {
+                int faceNum = faceInfo[0];
+                Log.i(TAG, "检测人脸数目为" + faceInfo[0]);
+                Bitmap drawBitmap = process_bitmap.copy(Bitmap.Config.ARGB_8888, true);
+                for(int i=0;i<faceNum;i++) {
+                    int left, top, right, bottom;
+                    Canvas canvas = new Canvas(drawBitmap);
+                    Paint paint = new Paint();
+                    left = faceInfo[1+14*i];
+                    top = faceInfo[2+14*i];
+                    right = faceInfo[3+14*i];
+                    bottom = faceInfo[4+14*i];
+                    paint.setColor(Color.RED);
+                    paint.setStyle(Paint.Style.STROKE);//不填充
+                    paint.setStrokeWidth(5);  //线的宽度
+                    canvas.drawRect(left, top, right, bottom, paint);
+                    //画特征点
+                    canvas.drawPoints(new float[]{faceInfo[5+14*i],faceInfo[10+14*i],
+                            faceInfo[6+14*i],faceInfo[11+14*i],
+                            faceInfo[7+14*i],faceInfo[12+14*i],
+                            faceInfo[8+14*i],faceInfo[13+14*i],
+                            faceInfo[9+14*i],faceInfo[14+14*i]}, paint);//画多个点
+                }
+                //imageView.setImageBitmap(drawBitmap);
+                Message msg = new Message();
+                msg.obj = process_bitmap;
+                update_ui.sendMessage(msg);
 
-        process_bitmap = bitmap;
-
-        int threadsNumber = 4;
-        int minFaceSize = 20;
-        int testTimeCount = 2;
-
-        mtcnn.SetMinFaceSize(minFaceSize);
-        mtcnn.SetTimeCount(testTimeCount);
-        mtcnn.SetThreadsNumber(threadsNumber);
-
-        int width = process_bitmap.getWidth();
-        int height = process_bitmap.getHeight();
-        Log.i(TAG, String.valueOf(width) + "*" + String.valueOf(height));
-        byte[] imageDate = getPixelsRGBA(process_bitmap);
-
-        long timeDetectFace = System.currentTimeMillis();
-        int faceInfo[] = null;
-
-        faceInfo = mtcnn.FaceDetect(imageDate, width, height, 4);
-
-        timeDetectFace = System.currentTimeMillis() - timeDetectFace;
-        Log.i(TAG, "人脸平均检测时间："+timeDetectFace/2);
-
-        if (faceInfo.length > 1) {
-            int faceNum = faceInfo[0];
-            Log.i(TAG, "检测人脸数目为" + faceInfo[0]);
-            Bitmap drawBitmap = process_bitmap.copy(Bitmap.Config.ARGB_8888, true);
-            for(int i=0;i<faceNum;i++) {
-                int left, top, right, bottom;
-                Canvas canvas = new Canvas(drawBitmap);
-                Paint paint = new Paint();
-                left = faceInfo[1+14*i];
-                top = faceInfo[2+14*i];
-                right = faceInfo[3+14*i];
-                bottom = faceInfo[4+14*i];
-                paint.setColor(Color.RED);
-                paint.setStyle(Paint.Style.STROKE);//不填充
-                paint.setStrokeWidth(5);  //线的宽度
-                canvas.drawRect(left, top, right, bottom, paint);
-                //画特征点
-                canvas.drawPoints(new float[]{faceInfo[5+14*i],faceInfo[10+14*i],
-                        faceInfo[6+14*i],faceInfo[11+14*i],
-                        faceInfo[7+14*i],faceInfo[12+14*i],
-                        faceInfo[8+14*i],faceInfo[13+14*i],
-                        faceInfo[9+14*i],faceInfo[14+14*i]}, paint);//画多个点
+            }else{
+                //imageView.setImageBitmap(process_bitmap);
+                Message msg = new Message();
+                msg.obj = process_bitmap;
+                update_ui.sendMessage(msg);
             }
-            imageView.setImageBitmap(drawBitmap);
-        }else{
-            imageView.setImageBitmap(process_bitmap);
         }
 
-    }
+
+        //提取像素点
+        private byte[] getPixelsRGBA(Bitmap image) {
+            // calculate how many bytes our image consists of
+            int bytes = image.getByteCount();
+            ByteBuffer buffer = ByteBuffer.allocate(bytes); // Create a new buffer
+            image.copyPixelsToBuffer(buffer); // Move the byte data to the buffer
+            byte[] temp = buffer.array(); // Get the underlying array containing the
+
+            return temp;
+        }
+
+        public Bitmap rotate_bitmap(Bitmap bitmap){
+            Matrix m = new Matrix();
+            m.postRotate(90);
+
+            Bitmap res = Bitmap.createBitmap(bitmap, 0,0, bitmap.getWidth(),  bitmap.getHeight(), m, true);
+
+            return res;
+        }
 
 
-    //提取像素点
-    private byte[] getPixelsRGBA(Bitmap image) {
-        // calculate how many bytes our image consists of
-        int bytes = image.getByteCount();
-        ByteBuffer buffer = ByteBuffer.allocate(bytes); // Create a new buffer
-        image.copyPixelsToBuffer(buffer); // Move the byte data to the buffer
-        byte[] temp = buffer.array(); // Get the underlying array containing the
+        public Bitmap compress_bitmap(Bitmap bitmap){
+            int REQUIRED_SIZE = 400;
+            int width = bitmap.getWidth();
+            int height = bitmap.getHeight();
+            int scale = 1;
+            while (true) {
+                if (width / 2 < REQUIRED_SIZE
+                        || height / 2 < REQUIRED_SIZE) {
+                    break;
+                }
+                width /= 2;
+                height /= 2;
+                scale *= 2;
+            }
+            Matrix matrix = new Matrix();
+            matrix.setScale((float)(1.0/scale), (float)(1.0/scale));
+            Bitmap res = Bitmap.createBitmap(bitmap, 0, 0,bitmap.getWidth(),
+                    bitmap.getHeight(), matrix, true);
 
-        return temp;
+            return bitmap;
+        }
+
+
+        /**
+         *将camera的YUV数据格式转换成bitmap
+         * @param yuvData
+         * @param width
+         * @param height
+         * @return
+         */
+        public Bitmap convertYUVtoRGB(byte[] yuvData, int width, int height) {
+            if (yuvType == null) {
+                yuvType = new Type.Builder(rs, Element.U8(rs)).setX(yuvData.length);
+                in = Allocation.createTyped(rs, yuvType.create(), Allocation.USAGE_SCRIPT);
+
+                rgbaType = new Type.Builder(rs, Element.RGBA_8888(rs)).setX(width).setY(height);
+                out = Allocation.createTyped(rs, rgbaType.create(), Allocation.USAGE_SCRIPT);
+            }
+            in.copyFrom(yuvData);
+            yuvToRgbIntrinsic.setInput(in);
+            yuvToRgbIntrinsic.forEach(out);
+            Bitmap bmpout = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+            out.copyTo(bmpout);
+            return bmpout;
+        }
+
+        /**
+         * 摄像头的数据是YUV420SP(NV21)格式的，计算数组需要的大小
+         * @param width
+         * @param height
+         * @return
+         */
+        public int getYUVByteSize(final int width, final int height) {
+            // The luminance plane requires 1 byte per pixel.
+            final int ySize = width * height;
+
+            // The UV plane works on 2x2 blocks, so dimensions with odd size must be rounded up.
+            // Each 2x2 block takes 2 bytes to encode, one each for U and V.
+            //final int uvSize = ((width + 1) / 2) * ((height + 1) / 2) * 2;
+            int res = (ySize * ImageFormat.getBitsPerPixel(ImageFormat.NV21)) / 8;
+            return res;
+        }
     }
 
 
@@ -340,24 +370,6 @@ public class CameraActivity extends Activity{
 
         }
     }
-
-    /**
-     * 摄像头的数据是YUV420SP(NV21)格式的，计算数组需要的大小
-     * @param width
-     * @param height
-     * @return
-     */
-    public static int getYUVByteSize(final int width, final int height) {
-        // The luminance plane requires 1 byte per pixel.
-        final int ySize = width * height;
-
-        // The UV plane works on 2x2 blocks, so dimensions with odd size must be rounded up.
-        // Each 2x2 block takes 2 bytes to encode, one each for U and V.
-        //final int uvSize = ((width + 1) / 2) * ((height + 1) / 2) * 2;
-        int res = (ySize * ImageFormat.getBitsPerPixel(ImageFormat.NV21)) / 8;
-        return res;
-    }
-        //;
 
 }
 
